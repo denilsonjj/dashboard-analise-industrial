@@ -1,0 +1,19 @@
+# Arquivos de Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ambientes Virtuais
+venv/
+.venv/
+env/
+.env/
+
+# Arquivos de dados locais
+*.csv
+*.xlsx
+
+# Arquivos de IDEs
+.vscode/
+.idea/

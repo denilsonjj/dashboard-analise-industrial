@@ -1,0 +1,40 @@
+.stApp, body {
+    background-color: #F0F2F6;
+}
+
+h1 {
+    color: #243782;
+}
+
+[data-testid="stSidebar"] > div:first-child {
+    background-color: #FFFFFF;
+    border-right: 1px solid #DEE2E6;
+}
+
+.kpi-card, .chart-card {
+    background-color: #FFFFFF;
+    border: 1px solid #DEE2E6;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);
+}
+
+.kpi-title, .chart-title, [data-testid="stMarkdownContainer"] p, .st-b1, div[role="button"], input {
+    color: #495057;
+}
+
+.kpi-value {
+    color: #111111;
+}
+
+.chart-title {
+    border-bottom: 2px solid #DEE2E6;
+}
+
+[data-testid="stSelectbox"] > div, 
+[data-testid="stDateInput"] > div {
+    background-color: #FFFFFF;
+    border: 1px solid #DEE2E6 !important;
+}
+
+#MainMenu, [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {
+    visibility: hidden; height: 0%; position: fixed;
+}
