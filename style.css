@@ -1,6 +1,6 @@
 /* --- DEFINIÇÃO DAS VARIÁVEIS DE TEMA --- */
 :root {
-    --bg-color: #F0F2F6;
+    --bg-color: #ffffff;
     --card-bg-color: #FFFFFF;
     --text-color: #495057;
     --title-color: #243782;
@@ -103,7 +103,7 @@ h1 {
     font-weight: 700;
     line-height: 1.1;
     margin-bottom: 15px;
-    color: var(--kpi-value-color); /* Usa a variável geral para o número principal */
+    color: var(--kpi-value-color); 
 }
 
 .sparkline-container {
@@ -117,9 +117,25 @@ h1 {
     height: 100%;
     object-fit: contain;
 }
+.chart-container {
+    background-color: #FFFFFF;
+    border: 1px solid #DEE2E6;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-bottom: 20px; /* Adiciona um espaço entre os cards de gráficos */
+}
+/* Adicione esta nova classe ao seu arquivo style.css */
 
-/* --- AJUSTES DE COR PARA GRÁFICOS ALTAIR --- */
-/* Streamlit injeta os gráficos em iframes, então precisamos aplicar estilos ao corpo do iframe */
+/* Aplica o estilo de card ao bloco de conteúdo de cada coluna */
+.st-emotion-cache-1fjr796 {
+    background-color: #FFFFFF;
+    border: 1px solid #DEE2E6;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
 iframe body {
     background-color: var(--card-bg-color) !important;
 }
