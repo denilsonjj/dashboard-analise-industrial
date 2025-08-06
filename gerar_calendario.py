@@ -1,6 +1,6 @@
 import pandas as pd
 import re
-
+import os
 # DAX completo como string
 dax_data ="""
     {
@@ -117,11 +117,17 @@ try:
     print("DataFrame criado com sucesso:")
     print(df_calendario.head())
 
-    # --- LINHA PARA SALVAR O ARQUIVO CSV ---
-    nome_arquivo_csv = 'calendario_produtivo.csv'
-    df_calendario.to_csv(nome_arquivo_csv, index=False)
+    # --- CORREÇÃO IMPORTANTE ---
+    # Garante que a pasta 'data' exista
+    if not os.path.exists('data'):
+        os.makedirs('data')
+        print("Diretório 'data' criado.")
 
-    print(f"\nArquivo '{nome_arquivo_csv}' salvo com sucesso!")
+    # Salva o arquivo CSV DENTRO da pasta 'data'
+    caminho_arquivo_csv = os.path.join('data', 'calendario_produtivo.csv')
+    df_calendario.to_csv(caminho_arquivo_csv, index=False)
+
+    print(f"\nArquivo '{caminho_arquivo_csv}' salvo com sucesso!")
 
 
 except Exception as e:

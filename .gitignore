@@ -17,3 +17,6 @@ env/
 # Arquivos de IDEs
 .vscode/
 .idea/
+
+# Pasta de modelos de IA
+models/
