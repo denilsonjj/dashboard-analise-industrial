@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import timedelta
 import os
 
-# Importando as funções dos nossos módulos
 from utils.ui import (
     carregar_css,
     criar_tela_analise_mtbf,
@@ -21,17 +20,15 @@ from utils.calculations import (
     aplicar_filtros_ope
 )
 
-# --- CONFIGURAÇÕES GERAIS E ESTILO
 st.set_page_config(
     page_title="Dashboard de Análise Industrial",
     page_icon="🛠️",
     layout="wide"
 )
 
-# Carrega o CSS
-carregar_css('style.css')
 
-# Constantes de estilo
+carregar_css('style.css')
+ 
 CORES = {
     "azul_escuro": "#243782",
     "laranja": "#e94e24",
@@ -79,10 +76,8 @@ if 'dados_carregados' not in st.session_state:
     df_falhas_base, df_calendario = carregar_dados_falhas()
     df_ope_base = carregar_dados_ope()
 
-    # --- LINHA ADICIONADA AQUI ---
     st.session_state.df_features_rul = pd.read_csv('data/dados_features_rul.csv')
 
-    # Guarda os dataframes base na memória da sessão
     st.session_state.df_falhas_base = df_falhas_base
     st.session_state.df_ope_base = df_ope_base
     st.session_state.df_calendario = df_calendario
@@ -95,7 +90,6 @@ with st.sidebar:
     min_date = st.session_state.df_falhas_base['EffectiveDay'].min().date()
     max_date = st.session_state.df_falhas_base['EffectiveDay'].max().date()
 
-    # Cada widget agora tem uma chave 'key' e chama a função de callback no 'on_change'
     st.date_input("Data de Início", min_date, min_value=min_date, max_value=max_date, key="data_inicio", on_change=atualizar_dados_filtrados)
     st.date_input("Data de Fim", max_date, min_value=min_date, max_value=max_date, key="data_fim", on_change=atualizar_dados_filtrados)
 
@@ -106,7 +100,7 @@ with st.sidebar:
     st.selectbox("Linha", linhas_disponiveis, key="linha_selecionada", on_change=atualizar_dados_filtrados)
 
     opcoes_shift = ["Todos"] + sorted(st.session_state.df_falhas_base['ShiftId'].dropna().unique().astype(int))
-    shift_map = {1: "Turno 1", 2: "Turno 2", 3: "Turno 3"}
+    shift_map = {1: "Turno 3", 2: "Turno 1", 3: "Turno 2"}
     st.selectbox("Turno", opcoes_shift, format_func=lambda id: shift_map.get(id, "Todos"), key="shift_selecionado_id", on_change=atualizar_dados_filtrados)
     
     st.selectbox('Tipo de dia', options=['Todos', 'Produtivo', 'Improdutivo'], key="tipo_dia_selecionado", on_change=atualizar_dados_filtrados)
@@ -118,7 +112,7 @@ if 'df_falhas_filtrado' not in st.session_state:
     atualizar_dados_filtrados()
     print("Dados filtrados pela primeira vez.")
 
-# --- LAYOUT PRINCIPAL ---
+# --- INÍCIO DO DASHBOARD ---   
 st.title("Dashboard de Análise Industrial")
 st.markdown("---")
 
@@ -131,11 +125,11 @@ main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs([
 
 with main_tab1:
     contexto_texto = f"**Grupo:** {st.session_state.linegroup_selecionado}"
-    # ... (o resto da sua lógica de contexto)
+
     st.markdown(f"<p style='text-align: center; color: grey;'>🔎 Visualizando: {contexto_texto}</p>", unsafe_allow_html=True)
     
     st.markdown("### Resumo do Período Selecionado")
-    # As funções agora lêem os dados diretamente do session_state
+   
     exibir_kpis_falhas(st.session_state.df_falhas_filtrado, st.session_state.df_calendario, CORES)
     st.markdown("---")
     
@@ -146,18 +140,17 @@ with main_tab1:
         criar_tela_analise_mttr(st.session_state.df_falhas_filtrado.copy(), st.session_state.df_calendario, CORES['laranja'], MAPA_MESES)
 
 with main_tab2:
-    # ... (lógica de contexto da aba OPE)
+    
     criar_tela_analise_ope(st.session_state.df_ope_filtrado, CORES, MAPA_MESES)
 
 with main_tab3:
    criar_tela_analise_preditiva(st.session_state.df_falhas_filtrado)
 with main_tab4:
     if 'df_features_rul' in st.session_state:
-        # --- MODIFICAÇÃO APLICADA AQUI ---
-        # Passamos o DataFrame que JÁ foi filtrado pela sidebar
+       
         criar_tela_analise_rul(
             df_features=st.session_state.df_features_rul,
-            df_falhas_filtrado=st.session_state.df_falhas_filtrado # Usamos o df já filtrado
+            df_falhas_filtrado=st.session_state.df_falhas_filtrado 
         )
     else:
         st.error("Dados de features para RUL não foram carregados. Reinicie a aplicação.")

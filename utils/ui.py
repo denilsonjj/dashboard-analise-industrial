@@ -334,7 +334,7 @@ def criar_tela_analise_preditiva(df_falhas_filtrado):
     # O turno selecionado na sidebar será usado como padrão para a análise
     turno_selecionado = st.session_state.get('shift_selecionado_id', 1) # Usa o turno da sidebar, ou 1 como padrão
     if turno_selecionado == "Todos":
-        turno_selecionado = 1 # Se "Todos" for selecionado, usamos o turno 1 como referência para a simulação
+        turno_selecionado = 2 # Se "Todos" for selecionado, usamos o turno 1 como referência para a simulação
         st.caption("Nota: Como o turno 'Todos' está selecionado, a simulação usará o Turno 1 como referência.")
 
 
@@ -422,7 +422,7 @@ def criar_tela_analise_rul(df_features, df_falhas_filtrado):
     """)
     st.markdown("---")
 
-    # --- Carregar Modelo Avançado ---
+
     try:
         model_path = os.path.join(PROJECT_ROOT, "models", "modelo_rul.joblib")
         columns_path = os.path.join(PROJECT_ROOT, "models", "colunas_rul.joblib")
@@ -432,10 +432,10 @@ def criar_tela_analise_rul(df_features, df_falhas_filtrado):
         st.error("Modelo de RUL ('modelo_rul.joblib') não encontrado. Execute 'ml/advanced_training.py' primeiro.")
         return
 
-    # A lista de componentes elegíveis agora vem do dataframe já filtrado
+    # dataframe de elementos já vem filtado
     componentes_elegiveis = df_falhas_filtrado['ElementDesc'].unique()
     
-    # Filtramos o dataset de features para incluir apenas estes componentes
+   
     df_features_filtrado = df_features[df_features['ElementDesc'].isin(componentes_elegiveis)]
 
     if df_features_filtrado.empty:
@@ -447,7 +447,7 @@ def criar_tela_analise_rul(df_features, df_falhas_filtrado):
     if st.button("Executar Análise Preditiva nos Componentes Filtrados", type="primary"):
         with st.spinner(f"Analisando o ciclo de vida dos componentes que correspondem aos seus filtros..."):
             
-            # Obter a "fotografia" mais recente de cada componente elegível
+           
             dados_recentes = df_features_filtrado.loc[df_features_filtrado.groupby('ElementDesc')['StartTime'].idxmax()].copy()
 
             if dados_recentes.empty:
@@ -481,7 +481,7 @@ def criar_tela_analise_rul(df_features, df_falhas_filtrado):
                 relatorio_futuro.style.format({
                     'Data Estimada da Falha Crítica': '{:%d/%m/%Y}',
                     'Baseado em Dados de': '{:%d/%m/%Y}',
-                    'Previsão (dias a partir de hoje)': '{:.0f}'
+                    'Previsão (dias a partir de hoje)': '{:.0f}',
                 }).background_gradient(cmap='OrRd', subset=['Previsão (dias a partir de hoje)']),
                 use_container_width=True, hide_index=True
             )

@@ -4,14 +4,14 @@ import os
 from datetime import timedelta
 
 # --- CONFIGURAÇÕES ---
-# Caminhos dos ficheiros
+
 DATA_DIR = 'data'
 FALHAS_CSV = os.path.join(DATA_DIR, 'dados_otimizados_falhas.csv')
-FEATURES_CSV = os.path.join(DATA_DIR, 'dados_features_rul.csv') # Ficheiro de saída
+FEATURES_CSV = os.path.join(DATA_DIR, 'dados_features_rul.csv') 
 
 # Parâmetros do modelo
-TIME_UNIT = 'D' # Unidade de tempo para a nossa "linha do tempo" (D=Dia)
-BREAKDOWN_THRESHOLD_SECONDS = 600 # 10 minutos
+TIME_UNIT = 'D' 
+BREAKDOWN_THRESHOLD_SECONDS = 600 
 
 def create_rul_features():
     """
@@ -27,15 +27,13 @@ def create_rul_features():
         print(f"ERRO: Ficheiro '{FALHAS_CSV}' não encontrado.")
         return
 
-    # Identificar falhas graves (Breakdowns)
+   
     df['is_breakdown'] = df['Duration'] >= BREAKDOWN_THRESHOLD_SECONDS
 
-    # Usaremos ElementDesc como o nosso identificador único de equipamento
     df = df.dropna(subset=['ElementDesc', 'StartTime'])
     df = df.sort_values(by=['ElementDesc', 'StartTime'])
 
     # --- 2. Calcular o Alvo (Target): RUL ---
-    # Para cada equipamento, encontrar a data do próximo breakdown
     df_breakdowns = df[df['is_breakdown']].copy()
     df_breakdowns['next_breakdown_date'] = df_breakdowns.groupby('ElementDesc')['StartTime'].shift(-1)
     
@@ -45,15 +43,13 @@ def create_rul_features():
     # Preencher a data do próximo breakdown para as linhas que não são breakdown
     df['next_breakdown_date'] = df.groupby('ElementDesc')['next_breakdown_date'].fillna(method='bfill')
     
-    # Calcular RUL (Remaining Useful Life) em dias
-    # Se não houver próximo breakdown, não podemos calcular o RUL para esse ciclo
+    
     df_rul = df.dropna(subset=['next_breakdown_date']).copy()
     df_rul['RUL'] = (df_rul['next_breakdown_date'] - df_rul['StartTime']).dt.total_seconds() / (24 * 3600)
     
     print("Cálculo do RUL (alvo) concluído.")
 
-    # --- 3. Criar Features Baseadas em Janelas de Tempo (Rolling Features) ---
-    # Agrupar por equipamento e por dia
+
     df_agg = df_rul.set_index('StartTime').groupby(['ElementDesc', pd.Grouper(freq=TIME_UNIT)]).agg(
         num_paradas=('is_breakdown', 'count'),
         num_breakdowns=('is_breakdown', 'sum'),
@@ -62,7 +58,7 @@ def create_rul_features():
 
     df_agg = df_agg.sort_values(by=['ElementDesc', 'StartTime'])
 
-    # Calcular features de janela móvel (ex: últimos 7 dias)
+    
     rolling_windows = [7, 14, 30]
     for window in rolling_windows:
         print(f"Calculando features para janela de {window} dias...")
@@ -73,14 +69,12 @@ def create_rul_features():
             lambda x: x.rolling(window, min_periods=1).sum()
         )
 
-    # Feature: Tempo desde a última falha (qualquer tipo)
+    
     df_agg['tempo_desde_ultima_parada'] = df_agg.groupby('ElementDesc')['StartTime'].diff().dt.total_seconds().fillna(0) / (24*3600)
     
     print("Cálculo de features de janela concluído.")
 
-    # --- 4. Juntar Features e Alvo ---
-    # Precisamos de alinhar o RUL com os dados agregados por dia
-    # Vamos pegar o RUL no final de cada período de agregação (dia)
+ 
     df_rul_daily = df_rul.groupby(['ElementDesc', pd.Grouper(key='StartTime', freq=TIME_UNIT)])['RUL'].min().reset_index()
     
     # Juntar os dados
