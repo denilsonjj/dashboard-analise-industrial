@@ -4,6 +4,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 import joblib
 import os
+import sys
+
+# Garante que o script encontre o config.py
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import config
 
 def treinar_e_salvar_modelo():
     """
@@ -12,38 +17,31 @@ def treinar_e_salvar_modelo():
     """
     print("Iniciando o processo de treinamento do modelo de IA...")
 
-    # Define os caminhos dos arquivos
-    caminho_dados = os.path.join('data', 'dados_otimizados_falhas.csv')
-    diretorio_modelos = 'models'
-    caminho_modelo = os.path.join(diretorio_modelos, 'modelo_preditivo.joblib')
-    caminho_colunas = os.path.join(diretorio_modelos, 'colunas_modelo.joblib')
-
     # Cria a pasta 'models' se ela não existir
-    if not os.path.exists(diretorio_modelos):
-        os.makedirs(diretorio_modelos)
-        print(f"Diretório '{diretorio_modelos}' criado.")
+    if not os.path.exists(config.MODELS_DIR):
+        os.makedirs(config.MODELS_DIR)
+        print(f"Diretório '{config.MODELS_DIR}' criado.")
 
     # --- 1. Carregamento de Dados ---
     try:
-        df_falhas = pd.read_csv(caminho_dados, sep=',')
+        df_falhas = pd.read_csv(config.FALHAS_CSV_PATH, sep=',')
         print("Dados de falhas carregados com sucesso.")
     except FileNotFoundError:
-        print(f"ERRO: Arquivo de dados não encontrado em '{caminho_dados}'.")
-        print("Por favor, certifique-se que o arquivo 'dados_otimizados_falhas.csv' está na pasta 'data'.")
+        print(f"ERRO: Arquivo de dados não encontrado em '{config.FALHAS_CSV_PATH}'.")
+        print("Certifique-se que o arquivo de dados existe.")
         return
 
     # --- 2. Engenharia de Features e Definição do Alvo ---
     # Alvo: Prever se uma parada será longa (Breakdown)
-    df_falhas['Target'] = (df_falhas['Duration'] >= 600).astype(int) # 1 para Breakdown, 0 para Microparada
+    df_falhas['Target'] = (df_falhas['Duration'] >= config.BREAKDOWN_THRESHOLD_SECONDS).astype(int)
 
     # Features: Variáveis que o modelo usará para aprender
     features = ['LineGroupDesc', 'LineDesc', 'StationDesc', 'ElementDesc', 'ShiftId']
-
-    # Lidar com valores nulos antes do one-hot encoding
     df_features = df_falhas[features].fillna('N/A')
 
     # Converter variáveis categóricas em numéricas (One-Hot Encoding)
-    X = pd.get_dummies(df_features, drop_first=True)
+    # REMOVIDO o drop_first=True para consistência com a previsão
+    X = pd.get_dummies(df_features) 
     y = df_falhas['Target']
     print("Engenharia de features concluída.")
 
@@ -52,23 +50,22 @@ def treinar_e_salvar_modelo():
 
     # --- 4. Treinamento do Modelo ---
     print("Iniciando o treinamento do modelo RandomForest...")
-    # Usamos 'class_weight' para lidar com dados desbalanceados (se houver mais microparadas que breakdowns)
     model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced', n_jobs=-1)
     model.fit(X_train, y_train)
     print("Treinamento concluído.")
 
-    # --- 5. Avaliação do Modelo (Opcional, mas recomendado) ---
+    # --- 5. Avaliação do Modelo ---
     y_pred = model.predict(X_test)
     print("\n--- Avaliação do Modelo no Conjunto de Teste ---")
-    print(classification_report(y_test, y_pred, target_names=['Microparada (<10min)', 'Breakdown (>10min)']))
+    print(classification_report(y_test, y_pred, target_names=['Microparada', 'Breakdown']))
     print("--------------------------------------------------\n")
 
     # --- 6. Salvando o Modelo e as Colunas ---
-    joblib.dump(model, caminho_modelo)
-    joblib.dump(X.columns, caminho_colunas)
+    joblib.dump(model, config.MODELO_PREDITIVO_PATH)
+    joblib.dump(X.columns.tolist(), config.COLUNAS_MODELO_PATH) # Salva como lista
 
-    print(f"✅ Modelo salvo com sucesso em: '{caminho_modelo}'")
-    print(f"✅ Colunas do modelo salvas em: '{caminho_colunas}'")
+    print(f"✅ Modelo salvo com sucesso em: '{config.MODELO_PREDITIVO_PATH}'")
+    print(f"✅ Colunas do modelo salvas em: '{config.COLUNAS_MODELO_PATH}'")
 
 
 if __name__ == '__main__':

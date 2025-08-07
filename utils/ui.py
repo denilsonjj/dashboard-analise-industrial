@@ -6,21 +6,25 @@ import io
 import base64
 import os
 import joblib
-from datetime import datetime, timedelta  
+from datetime import datetime, timedelta
 from streamlit_echarts import st_echarts
+from ml import predictions
 
+import shap
+import matplotlib.pyplot as plt
+
+# Importa as configurações centralizadas
+import config
+
+# Importa as funções de cálculo
 from utils.calculations import calcular_metricas_kpi, calcular_metricas_ope
-
-# --- LÓGICA DE CAMINHO ABSOLUTO ---
-UI_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(UI_DIR)
-ASSETS_DIR = os.path.join(PROJECT_ROOT, 'assets')
-TEMPLATES_DIR = os.path.join(PROJECT_ROOT, 'templates')
 
 
 # --- FUNÇÕES UTILITÁRIAS DE UI ---
+
 def carregar_css(nome_arquivo):
-    caminho_completo = os.path.join(ASSETS_DIR, nome_arquivo)
+    """Lê um arquivo CSS da pasta de assets e o aplica ao app."""
+    caminho_completo = os.path.join(config.ASSETS_DIR, nome_arquivo)
     try:
         with open(caminho_completo, 'r', encoding='utf-8') as f:
             st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
@@ -28,7 +32,8 @@ def carregar_css(nome_arquivo):
         st.warning(f"Arquivo CSS '{caminho_completo}' não encontrado.")
 
 def ler_html(nome_arquivo):
-    caminho_completo = os.path.join(TEMPLATES_DIR, nome_arquivo)
+    """Lê um arquivo de template HTML da pasta de templates."""
+    caminho_completo = os.path.join(config.TEMPLATES_DIR, nome_arquivo)
     try:
         with open(caminho_completo, 'r', encoding='utf-8') as f:
             return f.read()
@@ -38,9 +43,11 @@ def ler_html(nome_arquivo):
 
 @st.cache_data
 def convert_df_to_csv(df):
+    """Converte um DataFrame para CSV para download."""
     return df.to_csv(index=False, sep=';').encode('utf-8-sig')
 
 def gerar_sparkline_base64(data, cor_linha):
+    """Gera um mini-gráfico (sparkline) como uma imagem base64."""
     if data.empty or len(data) < 2: return ""
     fig, ax = plt.subplots(figsize=(4, 0.8), dpi=80)
     ax.plot(data, color=cor_linha, linewidth=2)
@@ -59,6 +66,7 @@ def gerar_sparkline_base64(data, cor_linha):
 
 
 # --- FUNÇÕES DE CRIAÇÃO DE TELAS ---
+
 def exibir_kpis_falhas(df_falhas_filtrado, df_calendario, cores):
     kpi_col1, kpi_col2, kpi_col3 = st.columns(3, gap="large")
     card_template = ler_html('card_template.html')
@@ -307,23 +315,12 @@ def criar_tela_analise_preditiva(df_falhas_filtrado):
     st.markdown("### 🤖 Análise de Risco de Breakdown")
     st.info("""
     Esta ferramenta utiliza os **filtros da sidebar** para identificar um grupo de componentes.
-    A IA então calcula a probabilidade de a próxima falha de cada um ser um **Breakdown (>10 min)**,
-    e explica os fatores de risco para o caso mais crítico.
+    A IA então calcula a probabilidade de a próxima falha de cada um ser um **Breakdown (>10 min)** e explica
+    os fatores de risco para o caso mais crítico.
     """)
     st.markdown("---")
 
-    # --- Carregar Modelo e Colunas ---
-    try:
-        model_path = os.path.join(PROJECT_ROOT, "models", "modelo_preditivo.joblib")
-        columns_path = os.path.join(PROJECT_ROOT, "models", "colunas_modelo.joblib")
-        model = joblib.load(model_path)
-        model_columns = joblib.load(columns_path)
-    except FileNotFoundError:
-        st.error("Modelo preditivo não encontrado. Execute o script 'ml/training.py' primeiro.")
-        return
-
-    # A lista de componentes elegíveis agora vem do dataframe já filtrado
-    componentes_unicos = df_falhas_filtrado.drop_duplicates(subset=['LineGroupDesc', 'LineDesc', 'StationDesc', 'ElementDesc'])
+    componentes_unicos = df_falhas_filtrado.drop_duplicates(subset=['LineGroupDesc', 'LineDesc', 'StationDesc', 'ElementDesc']).reset_index(drop=True)
 
     if componentes_unicos.empty:
         st.warning("Nenhum componente corresponde aos filtros selecionados na sidebar.")
@@ -331,87 +328,74 @@ def criar_tela_analise_preditiva(df_falhas_filtrado):
 
     st.markdown("#### Análise de Risco para Componentes Filtrados")
 
-    # O turno selecionado na sidebar será usado como padrão para a análise
-    turno_selecionado = st.session_state.get('shift_selecionado_id', 1) # Usa o turno da sidebar, ou 1 como padrão
+    turno_selecionado = st.session_state.get('shift_selecionado_id', 1)
     if turno_selecionado == "Todos":
-        turno_selecionado = 2 # Se "Todos" for selecionado, usamos o turno 1 como referência para a simulação
+        turno_selecionado = 1
         st.caption("Nota: Como o turno 'Todos' está selecionado, a simulação usará o Turno 1 como referência.")
 
-
-    if st.button("Executar Análise de Risco nos Componentes Filtrados", type="primary"):
-        with st.spinner(f"Analisando {len(componentes_unicos)} componentes que correspondem aos seus filtros..."):
+    if st.button("Executar Análise de Risco", type="primary", key="btn_risco_breakdown"):
+        with st.spinner(f"Analisando {len(componentes_unicos)} componentes..."):
             
-            lista_de_riscos = []
-            
-            for index, componente in componentes_unicos.iterrows():
-                input_data = {
-                    'LineGroupDesc': [componente['LineGroupDesc']],
-                    'LineDesc': [componente['LineDesc']],
-                    'StationDesc': [componente['StationDesc']],
-                    'ElementDesc': [componente['ElementDesc']],
-                    'ShiftId': [turno_selecionado]
-                }
-                input_df = pd.DataFrame(input_data).fillna('N/A')
-                input_encoded = pd.get_dummies(input_df)
-                input_aligned = input_encoded.reindex(columns=model_columns, fill_value=0)
+            df_riscos, input_aligned = predictions.prever_risco_breakdown(componentes_unicos, turno_selecionado)
 
-                prediction_proba = model.predict_proba(input_aligned)
-                prob_breakdown = prediction_proba[0][1]
-
-                lista_de_riscos.append({
-                    'Estação': componente['StationDesc'],
-                    'Componente': componente['ElementDesc'],
-                    'Probabilidade de Breakdown': prob_breakdown
-                })
-            
             st.markdown("---")
             st.subheader("Relatório de Risco de Breakdown")
 
-            if not lista_de_riscos:
-                st.error("Não foi possível gerar o relatório de risco.")
-                return
+            if df_riscos is None:
+                st.error("Modelo preditivo não encontrado. Execute 'ml/training.py' primeiro.")
+            elif df_riscos.empty:
+                st.info("Não foi possível gerar um relatório para os componentes selecionados.")
+            else:
+                st.dataframe(
+                    df_riscos.style
+                    .format({'Probabilidade de Breakdown': '{:.2%}'})
+                    .background_gradient(cmap='Reds', subset=['Probabilidade de Breakdown'])
+                    .set_properties(**{'text-align': 'left'}),
+                    use_container_width=True, hide_index=True
+                )
 
-            df_riscos = pd.DataFrame(lista_de_riscos)
-            df_riscos_ordenado = df_riscos.sort_values(by='Probabilidade de Breakdown', ascending=False).reset_index(drop=True)
-
-            st.dataframe(
-                df_riscos_ordenado.style
-                .format({'Probabilidade de Breakdown': '{:.2%}'})
-                .background_gradient(cmap='Reds', subset=['Probabilidade de Breakdown'])
-                .set_properties(**{'text-align': 'left'}),
-                use_container_width=True, hide_index=True
-            )
-
-            # --- NOVO: EXPLICANDO O "PORQUÊ" ---
-            if not df_riscos_ordenado.empty:
+                # --- SEÇÃO DE EXPLICABILIDADE (XAI) COM SHAP - VERSÃO FINAL E ROBUSTA ---
                 st.markdown("---")
-                st.subheader("Análise de Causa Raiz para o Componente de Maior Risco")
+                st.subheader("🔬 Análise de Causa Raiz para o Componente de Maior Risco")
                 
-                componente_maior_risco = df_riscos_ordenado.iloc[0]
-                st.write(f"O componente com maior risco é **{componente_maior_risco['Componente']}** na estação **{componente_maior_risco['Estação']}**.")
+                componente_maior_risco = df_riscos.iloc[0]
+                st.write(f"O componente com maior risco de breakdown é **{componente_maior_risco['ElementDesc']}** na estação **{componente_maior_risco['StationDesc']}**.")
+                st.write("O gráfico abaixo mostra os fatores que mais contribuíram para esta previsão:")
 
-                # Recriar os dados de input para o componente de maior risco para obter as features
-                input_data_maior_risco = {
-                    'LineGroupDesc': [df_falhas_filtrado[df_falhas_filtrado['ElementDesc'] == componente_maior_risco['Componente']].iloc[0]['LineGroupDesc']],
-                    'LineDesc': [df_falhas_filtrado[df_falhas_filtrado['ElementDesc'] == componente_maior_risco['Componente']].iloc[0]['LineDesc']],
-                    'StationDesc': [componente_maior_risco['Estação']],
-                    'ElementDesc': [componente_maior_risco['Componente']],
-                    'ShiftId': [turno_selecionado]
-                }
-                input_df_maior_risco = pd.DataFrame(input_data_maior_risco).fillna('N/A')
-                input_encoded_maior_risco = pd.get_dummies(input_df_maior_risco)
-                input_aligned_maior_risco = input_encoded_maior_risco.reindex(columns=model_columns, fill_value=0)
-                
-                # SHAP ou LIME seriam ideais, mas por simplicidade, vamos mostrar a presença de features importantes
-                st.write(f"**Fatores que contribuem para o risco (com base na estrutura do modelo):**")
-                fatores_presentes = [col for col in input_aligned_maior_risco.columns if input_aligned_maior_risco[col].iloc[0] == 1]
-                
-                # Extrai apenas a parte relevante do nome da coluna
-                fatores_limpos = [f.split('_')[-1] for f in fatores_presentes]
-                
-                for fator in fatores_limpos:
-                    st.markdown(f"- **Presença de:** `{fator}`")
-                
+                try:
+                    # Usamos o método 'interventional', que é mais robusto.
+                    # Passamos todo o 'input_aligned' como dados de fundo para o explainer,
+                    # o que ajuda o SHAP a entender a distribuição dos dados.
+                    explainer = shap.TreeExplainer(
+                        predictions.model_breakdown, 
+                        input_aligned, 
+                        feature_perturbation="interventional",
+                        model_output="probability"
+                    )
+                    
+                    # Geramos a explicação apenas para o componente de maior risco (índice 0)
+                    shap_explanation = explainer(input_aligned.iloc[[0]])
+
+                    # Selecionamos a explicação para a classe positiva ('Breakdown')
+                    instance_to_plot = shap_explanation[0, :, 1]
+
+                    # Criamos e exibimos o gráfico
+                    plt.figure()
+                    shap.plots.waterfall(instance_to_plot, max_display=10, show=False)
+                    st.pyplot(plt.gcf())
+                    plt.clf()
+
+                except Exception as e:
+                    st.error(f"Ocorreu um erro ao gerar a explicação do modelo: {e}")
+
+                with st.expander("Como interpretar o gráfico?"):
+                    st.markdown("""
+                    - O valor **`E[f(X)]`** na base é a probabilidade média de breakdown para qualquer componente, segundo o modelo.
+                    - As **barras vermelhas** representam features que **aumentam** o risco de breakdown.
+                    - As **barras azuis** representam features que **diminuem** o risco.
+                    - O tamanho de cada barra mostra o **tamanho do impacto** daquela feature.
+                    - O valor **`f(x)`** no topo é a previsão final de risco para este componente específico.
+                    """)
 
 def criar_tela_analise_rul(df_features, df_falhas_filtrado):
     st.markdown("### 🔮 Previsão de Falhas Críticas por Linha (>10 min)")
@@ -422,20 +406,7 @@ def criar_tela_analise_rul(df_features, df_falhas_filtrado):
     """)
     st.markdown("---")
 
-
-    try:
-        model_path = os.path.join(PROJECT_ROOT, "models", "modelo_rul.joblib")
-        columns_path = os.path.join(PROJECT_ROOT, "models", "colunas_rul.joblib")
-        model = joblib.load(model_path)
-        model_columns = joblib.load(columns_path)
-    except FileNotFoundError:
-        st.error("Modelo de RUL ('modelo_rul.joblib') não encontrado. Execute 'ml/advanced_training.py' primeiro.")
-        return
-
-    # dataframe de elementos já vem filtado
     componentes_elegiveis = df_falhas_filtrado['ElementDesc'].unique()
-    
-   
     df_features_filtrado = df_features[df_features['ElementDesc'].isin(componentes_elegiveis)]
 
     if df_features_filtrado.empty:
@@ -443,45 +414,25 @@ def criar_tela_analise_rul(df_features, df_falhas_filtrado):
         return
 
     st.markdown("#### Análise de Risco para Componentes Filtrados")
-    
-    if st.button("Executar Análise Preditiva nos Componentes Filtrados", type="primary"):
-        with st.spinner(f"Analisando o ciclo de vida dos componentes que correspondem aos seus filtros..."):
+
+    if st.button("Executar Análise Preditiva nos Componentes Filtrados", type="primary", key="btn_analise_rul"):
+        with st.spinner(f"Analisando o ciclo de vida dos componentes..."):
             
-           
-            dados_recentes = df_features_filtrado.loc[df_features_filtrado.groupby('ElementDesc')['StartTime'].idxmax()].copy()
-
-            if dados_recentes.empty:
-                st.warning("Não há dados de features para os componentes filtrados.")
-                return
-
-            features_para_prever = dados_recentes[model_columns]
-            previsoes_rul = model.predict(features_para_prever)
-            dados_recentes['RUL_Previsto'] = previsoes_rul
-            
-            hoje = datetime.now().date()
-            dados_recentes['Ultimo_Status_Data'] = pd.to_datetime(dados_recentes['StartTime']).dt.date
-            dados_recentes['Data_Falha_Prevista'] = dados_recentes.apply(
-                lambda row: row['Ultimo_Status_Data'] + timedelta(days=int(row['RUL_Previsto'])), axis=1
-            )
-            dados_recentes['Dias_Ate_Falha_Hoje'] = (pd.to_datetime(dados_recentes['Data_Falha_Prevista']) - pd.to_datetime(hoje)).dt.days
-
-            relatorio = dados_recentes[[ 'ElementDesc', 'Dias_Ate_Falha_Hoje', 'Data_Falha_Prevista', 'Ultimo_Status_Data' ]]
-            relatorio.columns = ['Componente em Risco', 'Previsão (dias a partir de hoje)', 'Data Estimada da Falha Crítica', 'Baseado em Dados de']
-
-            relatorio_futuro = relatorio[relatorio['Previsão (dias a partir de hoje)'] >= 0].sort_values(by='Previsão (dias a partir de hoje)')
+            relatorio_final = predictions.prever_vida_util_restante(df_features_filtrado)
 
             st.markdown("---")
             st.subheader("Relatório de Risco Preditivo (Próximas Falhas Críticas)")
 
-            if relatorio_futuro.empty:
-                st.success("✅ Nenhuma falha crítica iminente prevista para os componentes que correspondem aos seus filtros.")
-                return
-
-            st.dataframe(
-                relatorio_futuro.style.format({
-                    'Data Estimada da Falha Crítica': '{:%d/%m/%Y}',
-                    'Baseado em Dados de': '{:%d/%m/%Y}',
-                    'Previsão (dias a partir de hoje)': '{:.0f}',
-                }).background_gradient(cmap='OrRd', subset=['Previsão (dias a partir de hoje)']),
-                use_container_width=True, hide_index=True
-            )
+            if relatorio_final is None:
+                st.error("Modelo de RUL não encontrado. Execute 'ml/advanced_training.py' primeiro.")
+            elif relatorio_final.empty:
+                st.success("✅ Nenhuma falha crítica iminente prevista para os componentes selecionados.")
+            else:
+                st.dataframe(
+                    relatorio_final.style.format({
+                        'Data Estimada da Falha Crítica': '{:%d/%m/%Y}',
+                        'Baseado em Dados de': '{:%d/%m/%Y}',
+                        'Previsão (dias a partir de hoje)': '{:.0f}',
+                    }).background_gradient(cmap='OrRd', subset=['Previsão (dias a partir de hoje)']),
+                    use_container_width=True, hide_index=True
+                )

@@ -2,13 +2,13 @@ import pandas as pd
 import os
 import pymssql
 import streamlit as st
-
+import config
 
 UTILS_DIR = os.path.dirname(os.path.abspath(__file__))
 # Sobe um nível para chegar à raiz do projeto
 PROJECT_ROOT = os.path.dirname(UTILS_DIR)
 # Cria o caminho para a pasta 'data'
-DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+DATA_DIR = config.DATA_DIR
 
 
 
@@ -54,7 +54,7 @@ def carregar_dados_falhas():
 
 @st.cache_data(ttl=3600)
 def carregar_dados_ope():
-    arquivo_csv = os.path.join('data', 'dados_ope.csv')
+    arquivo_csv = config.OPE_CSV_PATH
     if os.path.exists(arquivo_csv):
         df = pd.read_csv(arquivo_csv, sep=';')
     else:

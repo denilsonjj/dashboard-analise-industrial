@@ -1,0 +1,10 @@
+altair
+joblib
+matplotlib
+numpy
+pandas
+pymssql
+scikit-learn
+streamlit
+streamlit-echarts
+shap
