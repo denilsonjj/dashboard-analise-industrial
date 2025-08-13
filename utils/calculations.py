@@ -78,7 +78,7 @@ def calcular_metricas_kpi(df_falhas_filtradas, df_calendario):
     dias_e_turnos_unicos = df_copy[['EffectiveDay', 'ShiftId']].drop_duplicates()
     
     total_uptime_minutos = 0
-    minutos_por_turno = {1: 8 * 60, 2: 8 * 60, 3: 5 * 60}
+    minutos_por_turno = {1: 8.3 * 60, 2: 8.3 * 60, 3: 5.5 * 60}
     for _, row in dias_e_turnos_unicos.iterrows():
         dia_da_semana = pd.to_datetime(row['EffectiveDay']).weekday() # Segunda=0, Domingo=6
         if dia_da_semana == 6: # Se for domingo
@@ -124,7 +124,12 @@ def aplicar_filtro_stopingo(df, tipo_selecionado='Sem Stop In Go'):
     cond5 = (df_copy['LineDesc'].str.contains("CHASSIS2",case=False))&(df_copy['StationDesc'].str.contains("ZNE06",case=False))
     cond6 = df_copy['ElementDesc'].isin(["PLS01","PLS02","PLS_02","PLS03","PLS04","PLS05","PLS06","PLS07","PLS08","PLS09","PLS10","PLS11","PLS12","PLS13"])
     cond7 = df_copy['StationDesc'].str.contains("ZNE07",case=False)
-    indices = df_copy[cond1 | cond2 | cond3 | cond4 | cond5 | cond6 | cond7].index
+    cond8 = df_copy['ElementDesc'].isin(['BRS01', 'BR_01', 'BR_02', 'BR_03', 'BR_04', 'BR_05', 'BR_06', 
+                                                  'BR_07', 'BR_08', 'BR_09', 'BR_10', 'BR_11', 'BR_12', 'HGD01', 'HGD02', 
+                                                  'HGD_01', 'HLC01', 'HLC_01', 'PRB01', 'PRB02', 'PRB03', 'PRB04', 'PRB05', 
+                                                  'PRB06', 'PTZ01', 'PTZ02', 'PTZ03', 'PTZ04', 'VT01', 'VT_01', 'VT_02', 'VT_03',
+                                                  'VT_04', 'VT_06', 'XGA01', 'XGA02', 'XGA03', 'XGA04', 'XGA05', 'XGA06', 'XGA07', 'XGA08'])
+    indices = df_copy[cond1 | cond2 | cond3 | cond4 | cond5 | cond6 | cond7 | cond8].index
     if tipo_selecionado == 'Com Stop In Go': return df_copy.loc[indices]
     elif tipo_selecionado == 'Sem Stop In Go': return df_copy.drop(indices)
     return df_copy

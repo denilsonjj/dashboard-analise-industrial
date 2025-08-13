@@ -57,8 +57,6 @@ with st.sidebar:
     min_date = st.session_state.df_falhas_base['EffectiveDay'].min().date()
     max_date = st.session_state.df_falhas_base['EffectiveDay'].max().date()
 
-    # Widgets de filtro agora SÓ guardam seu valor no st.session_state
-    # Removemos o "on_change" de todos eles.
     st.date_input("Data de Início", min_date, min_value=min_date, max_value=max_date, key="data_inicio")
     st.date_input("Data de Fim", max_date, min_value=min_date, max_value=max_date, key="data_fim")
 
@@ -78,8 +76,6 @@ with st.sidebar:
 
 
 # --- PROCESSAMENTO DOS DADOS FILTRADOS ---
-# Chamamos a função de filtragem UMA VEZ por execução, passando os valores da sidebar.
-# O cache do Streamlit garante que a função só re-execute se um filtro mudar.
 df_falhas_filtrado, df_ope_filtrado = obter_dados_filtrados(
     st.session_state.df_falhas_base,
     st.session_state.df_ope_base,
